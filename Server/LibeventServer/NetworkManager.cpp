@@ -104,8 +104,10 @@ void NetworkManager::ReadCB(bufferevent* bev, void* arg) {
 }
 
 void NetworkManager::EventCB(bufferevent* bev, short events, void*) {
-    auto session = Session::GetSession(bev);
-    if (session) {
-        session->OnEvent(events);
+    if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
+        evutil_socket_t fd = bufferevent_getfd(bev);
+        Logger::Info("Client disconnected or error occurred (fd={}, events={})", fd, events);
+        Session::RemoveSession(bev);
+        bufferevent_free(bev);
     }
 }

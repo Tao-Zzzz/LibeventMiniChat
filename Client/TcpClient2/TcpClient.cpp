@@ -32,7 +32,6 @@ bool TcpClient::Connect() {
         return false;
     }
 
-    // IP4, 流式SOCKET, TCP协议
     sock_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock_ == INVALID_SOCKET) {
         std::cerr << "Socket creation failed: " << WSAGetLastError() << std::endl;
@@ -48,7 +47,6 @@ bool TcpClient::Connect() {
 
     sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
-    // 网络字节序,大端
     serverAddr.sin_port = htons(port_);
     if (inet_pton(AF_INET, host_.c_str(), &serverAddr.sin_addr) <= 0) {
         std::cerr << "Invalid address: " << host_ << std::endl;
@@ -68,9 +66,7 @@ bool TcpClient::Connect() {
         fd_set write_fds;
         FD_ZERO(&write_fds);
         FD_SET(sock_, &write_fds);
-        timeval timeout = { 2, 0 }; // 设置两秒超时
-
-        // select监控是否可写,当可写时才真正进行了连接
+        timeval timeout = { 2, 0 };
         if (select(static_cast<int>(sock_) + 1, nullptr, &write_fds, nullptr, &timeout) <= 0) {
             std::cerr << "Connection timeout or error: " << WSAGetLastError() << std::endl;
             closesocket(sock_);
@@ -83,19 +79,15 @@ bool TcpClient::Connect() {
     return true;
 }
 
-// 构造带长度前缀的消息，适配服务器的协议
 void TcpClient::SendMessage(const std::string& message) {
     uint32_t msg_len = static_cast<uint32_t>(message.size());
     uint32_t net_len = htonl(msg_len);
-
     std::vector<char> data;
-    // 插入头部 和 body
     data.insert(data.end(), (char*)&net_len, (char*)&net_len + sizeof(uint32_t));
     data.insert(data.end(), message.begin(), message.end());
 
     int sent = send(sock_, data.data(), static_cast<int>(data.size()), 0);
     if (sent == SOCKET_ERROR) {
-        // 非阻塞可能返回数据未完全发送
         if (WSAGetLastError() != WSAEWOULDBLOCK) {
             std::cerr << "Send failed: " << WSAGetLastError() << std::endl;
         }
@@ -110,10 +102,8 @@ void TcpClient::SendMessage(const std::string& message) {
 bool TcpClient::ReceiveMessage(std::string& message) {
     std::vector<char> buffer(4096);
     int len = recv(sock_, buffer.data(), buffer.size(), 0);
-
     if (len == SOCKET_ERROR) {
         int error = WSAGetLastError();
-        // 无数据可读
         if (error == WSAEWOULDBLOCK) {
             return false;
         }
@@ -125,16 +115,12 @@ bool TcpClient::ReceiveMessage(std::string& message) {
         return false;
     }
 
-    // 将读取到的数据存到读缓冲区
     read_buffer_.append(buffer.data(), len);
-    // 如果数据长度大于头部
     while (read_buffer_.size() >= sizeof(uint32_t)) {
         uint32_t msg_len;
         memcpy(&msg_len, read_buffer_.data(), sizeof(uint32_t));
-        // 转换为主机字节序
         msg_len = ntohl(msg_len);
 
-        // 如果不够完整长度,那退出循环,等待下一次读
         if (read_buffer_.size() < sizeof(uint32_t) + msg_len) {
             break;
         }
@@ -147,7 +133,6 @@ bool TcpClient::ReceiveMessage(std::string& message) {
 }
 
 void TcpClient::PrintInputPrompt(const std::string& current_input) {
-    // 获取标准输出句柄和当前控制台信息（光标位置等）
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     CONSOLE_SCREEN_BUFFER_INFO csbi;
     GetConsoleScreenBufferInfo(hConsole, &csbi);
@@ -168,7 +153,6 @@ void TcpClient::Run() {
         return;
     }
 
-    // 用于 select 的文件描述符集
     fd_set read_fds;
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     input_buffer_.clear();
@@ -198,7 +182,6 @@ void TcpClient::Run() {
         // 处理网络消息
         if (FD_ISSET(sock_, &read_fds)) {
             std::string message;
-            // 接收消息
             if (ReceiveMessage(message)) {
                 std::cout << "\nReceived: " << message << std::endl;
                 PrintInputPrompt(input_buffer_);

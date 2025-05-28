@@ -1,10 +1,23 @@
+# LibeventMiniChat
+**本项目是一个学习libevent使用方法的学习项目, 服务器将客户端发来的消息广播到其他客户端**
 
-libevent
+Server端采用Libevent的库函数, 
+Client端采用socket编程
+
+双端用一个固定4字节长度(uint32_t)的首部来存储消息长度
+<font color="#ff0000">接收端维护缓冲区, 累计数据直到收到完整信息</font>
+<font color="#ff0000">发送方无需关心分包, 接收端会自己处理</font>
+# 运行截图
+![](attachment/b893a486258c1d059f560ae5a83e3a1c.png)
+
+
+
+
+下面是一些笔记
+## LibeventServer
 eventBase管理所有event
-![](attachment/d67a6689fb3e99c5b3018ca2720dc6fb.png)
-#### **`evconnlistener_new_bind`**
+**`evconnlistener_new_bind`**
 简化了socket的创建, 绑定, 监听和事件注册流程
-
 ```c
 evconnlistener_new_bind(
     event_base* base,            // 事件循环基础
@@ -17,10 +30,10 @@ evconnlistener_new_bind(
 );
 ```
 
-为新来的客户端socket创建buffevent, 并且绑定一个session
-bufferevent自动管理数据的接收和发送，无需手动 `read()` / `write()`, 而且能够直接绑直接绑定读/写/错误事件的处理函数,自动适配不同系统的 I/O 模型（如 epoll、kqueue）
+<font color="#ff0000">为新来的客户端socket创建buffevent, 并且绑定一个session</font>
+bufferevent**自动管理数据的接收和发送，无需手动 `read()` / `write()`, 而且能够直接绑直接绑定读/写/错误事件的处理函数,自动适配不同系统的 I/O 模型（如 epoll、kqueue）**
 
-客户端发送数据, 触发buffevent回调, buffevent回调调用session
+客户端发送数据, buffevent发现可读, 触发buffevent回调, buffevent回调调用session
 	在读取数据的时候用一个buffer来读取, 用evbuffer_remove来读取数据
 	传入buffer. data () 和长度, 即可像数组传入首地址一样读取
 客户端断开时也是一样
@@ -40,8 +53,10 @@ static静态方法, 在任何地方都可调用
 
 **inet_pton**将ip地址转化为二进制格式
 
-
-
+socket设置非阻塞模式, 不等待数据到达或发送完成
+要注意发送时转成网络字节序
+还有select的使用方式, 在connect中确定连接成功的select与在run中确定是否可读的select
+## 其他
 创建socket, 返回fd, 操作系统自动生成socket结构体, 内部是一些控制块, 比如协议, 报文结构什么的
 
 [[../000-计算机大类/TCP_IP网络编程/sockaddr|sockaddr]] 将IP端口信息存入内核的socket结构体中
